@@ -1,0 +1,47 @@
+<%- include('../partials/header') %>
+<%- include('../partials/sidebar') %>
+
+<div class="main-content">
+
+    <div class="module-title">
+        <h1 class="module-heading">View Art Images</h1>
+    </div>
+
+    <div class="table-card">
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <a href="/admin/art-image/add" class="submit-btn">
+                <i class="bi bi-plus-circle me-1"></i> Add Images
+            </a>
+
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0 fw-bold text-dark" style="white-space: nowrap;">Category Filter:</label>
+                <select id="categoryFilter" class="form-select form-select-sm shadow-sm" style="width: 160px; font-weight: 600; border-radius: 8px;">
+                    <option value="All" selected>All</option>
+                    <option value="Art">Art</option>
+                    <option value="Custom Art">Custom Art</option>
+                </select>
+            </div>
+        </div>
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Type</th>
+                    <th>Art Title / Request</th>
+                    <th>Image</th>
+                    <th class="text-center">Action</th>
+                </tr>
+            </thead>
+
+            <tbody id="artImageTableBody"></tbody>
+        </table>
+
+    </div>
+
+</div>
+
+<script src="/admin/js/artImage.js"></script>
+
+<%- include('../partials/footer') %>

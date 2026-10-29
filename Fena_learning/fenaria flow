@@ -1,0 +1,90 @@
+🧭 The Big Picture Flow
+
+When you run npm run backend (or npm run dev), this exact chain reaction happens inside backend/:
+
+Let's examine each file, what it does, and why it was built this way.
+
+File 1: backend/server.js — The Engine Room
+
+This is the main entry point of the entire backend API.
+
+1. Why dotenv.config() is at the very top (Line 7):
+javascript
+dotenv.config();
+Node.js does not natively understand .env files.
+dotenv.config() must run first so environment variables (MONGO_URI, JWT_SECRET, PORT) are injected into Node's process.env before any other file tries to read them.
+2. Why cors(...) is essential (Line 15–18):
+javascript
+app.use(cors({
+    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    credentials: true
+}));
+The Problem: Your React frontend runs on port 5173, while your Express backend runs on port 5000. By default, web browsers block requests between different ports for security (called CORS: Cross-Origin Resource Sharing).
+The Solution: This middleware tells the browser: "Allow requests coming from http://localhost:5173 to safely talk to port 5000."
+3. Why express.json() is needed (Line 19):
+javascript
+app.use(express.json());
+When a user logs in, the browser sends { "email": "...", "password": "..." } as raw text.
+express.json() automatically parses that incoming text and converts it into a ready-to-use JavaScript object inside req.body.
+4. The Keep-Alive Health Route (Line 23–29):
+javascript
+app.get('/api/health', (req, res) => {
+    res.status(200).json({ status: 'online', service: 'Fenaria Art Studio Backend' });
+});
+Why this is critical for Render: Render's free tier puts web services to sleep after 15 minutes of inactivity.
+By setting up a free 10-minute ping (e.g., using UptimeRobot
+) to https://your-backend.onrender.com/api/health, the server stays awake 24/7 at zero cost!
+File 2: backend/config/db.js — The Cloud Database Connector
+
+This file manages the connection to your MongoDB Atlas cluster.
+
+1. The DNS Fix for Windows / Indian ISPs (Line 4–9):
+javascript
+try {
+    dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (e) {}
+The Problem: Many Indian ISPs (Jio, Airtel) and Windows DNS configurations fail to resolve MongoDB's mongodb+srv:// SRV records, throwing an ECONNREFUSED querySrv error.
+The Solution: This forces Node.js to use Google's Public DNS (8.8.8.8), preventing connection drops.
+2. Fast Fail Timeout (Line 14–16):
+javascript
+const conn = await mongoose.connect(uri, {
+    serverSelectionTimeoutMS: 5000 // Fast fail in 5s instead of hanging for 30s
+});
+By default, if your IP is not whitelisted, Mongoose freezes your server for 30 seconds before failing.
+We reduced this to 5 seconds and added a clear warning log (If using MongoDB Atlas, make sure your IP is whitelisted) so you know immediately if your IP changed.
+File 3: backend/models/User.js — The Customer Blueprint
+
+This file replaces the old MySQL user table with a modern MongoDB Schema.
+
+1. Schema Validation (Line 4–59):
+Defines fields (name, email, password, phone_number, address, city, state, zip_code, role, is_online).
+Enforces data integrity: email must be unique and match a valid email format, password must be at least 6 characters.
+2. Automatic Password Hashing via bcryptjs (Line 62–71):
+javascript
+userSchema.pre('save', async function (next) {
+    if (!this.isModified('password')) return next();
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+});
+Pre-save hook: Runs automatically right before a user document is saved to MongoDB.
+Takes the raw password (e.g., "secret123"), mixes it with a random 10-round cryptographic salt, and turns it into an irreversible hash (e.g., "$2a$10$wT8K...").
+Raw passwords are NEVER stored in the database.
+3. Secure Verification & JSON Sanitation (Line 74–83):
+javascript
+userSchema.methods.comparePassword = async function (candidatePassword) {
+    return bcrypt.compare(candidatePassword, this.password);
+};
+userSchema.methods.toJSON = function () {
+    const userObject = this.toObject();
+    delete userObject.password;
+    return userObject;
+};
+comparePassword: Safely compares entered text against the hash during login.
+toJSON: Automatically removes the password field whenever user data is sent back to the frontend. The browser never receives password hashes!
+Summary Checklist for Point 2:
+server.js starts the app, applies CORS, and mounts routes.
+config/db.js securely links to MongoDB Atlas with DNS & timeout protections.
+models/User.js enforces customer structure and encrypts passwords automatically.
+
+Do you have any questions on how server.js, db.js, or User.js operate together before we move to Point 3: Authentication API Flow (authRoutes.js ➔ authController.js ➔ authMiddleware.js)?
